@@ -120,3 +120,39 @@ def test_graph_returns_generation_field(agent_setup):
     result = _invoke(app, "What are the key talking points from this match?")
     assert result.get("generation")
     assert len(result["generation"]) > 20
+
+
+@needs_openai
+def test_graph_structured_response_has_evidence(agent_setup):
+    """Structured response should include evidence items."""
+    app, _, _ = agent_setup
+    result = _invoke(app, "What was the impact of the red card?")
+
+    sr = result.get("structured_response", {})
+    assert sr, "Expected structured_response in result"
+    assert sr.get("answer"), "Expected answer field"
+    assert isinstance(sr.get("evidence", []), list)
+    assert len(sr.get("evidence", [])) >= 1, "Expected at least 1 evidence item"
+
+
+@needs_openai
+def test_graph_structured_response_has_confidence(agent_setup):
+    """Structured response should include a confidence level."""
+    app, _, _ = agent_setup
+    result = _invoke(app, "Summarise the match so far.")
+
+    sr = result.get("structured_response", {})
+    assert sr.get("confidence") in ("high", "medium", "low"), (
+        f"Expected valid confidence, got: {sr.get('confidence')}"
+    )
+
+
+@needs_openai
+def test_graph_structured_response_has_sources(agent_setup):
+    """Structured response should list data sources used."""
+    app, _, _ = agent_setup
+    result = _invoke(app, "How did Saka play?")
+
+    sr = result.get("structured_response", {})
+    assert isinstance(sr.get("sources", []), list)
+    assert len(sr.get("sources", [])) >= 1, "Expected at least 1 source"

@@ -392,17 +392,15 @@ with analyst_tab:
         for msg in st.session_state.chat_history:
             with st.chat_message(msg["role"]):
                 st.markdown(msg["content"])
-                if msg.get("sources"):
-                    with st.expander(f"Evidence ({len(msg['sources'])} sources)"):
-                        for src in msg["sources"]:
-                            if src.get("type") == "tool_result":
-                                st.markdown(f"**Tool:** `{src.get('tool', 'N/A')}`")
-                            elif src.get("event_id"):
-                                st.markdown(
-                                    f"**{src.get('minute', '?')}' — "
-                                    f"{src.get('event_type', 'event').replace('_', ' ').title()}**"
-                                    f" ({src.get('player_name', '')})"
-                                )
+                sr = msg.get("structured_response", {})
+                if sr.get("evidence"):
+                    with st.expander(f"📋 Evidence ({len(sr['evidence'])} items)"):
+                        for e in sr["evidence"]:
+                            player_tag = f" ({e.get('player', '')})" if e.get("player") else ""
+                            st.markdown(f"- **{e.get('minute', '?')}'**{player_tag}: {e.get('description', '')}")
+                        conf = sr.get("confidence", "medium")
+                        conf_icons = {"high": "🟢", "medium": "🟡", "low": "🔴"}
+                        st.caption(f"{conf_icons.get(conf, '⚪')} Confidence: {conf} | Sources: {', '.join(sr.get('sources', []))}")
 
         # Chat input
         if question := st.chat_input("Ask the analyst about the match..."):
@@ -423,19 +421,41 @@ with analyst_tab:
                         }
                     )
 
-                    generation = result.get("generation", "I couldn't generate an analysis.")
+                    sr = result.get("structured_response", {})
                     sources = result.get("sources", [])
 
-                    st.markdown(generation)
+                    # Render structured answer
+                    answer = sr.get("answer", result.get("generation", "I couldn't generate an analysis."))
+                    st.markdown(answer)
 
+                    # Evidence block
+                    evidence = sr.get("evidence", [])
+                    if evidence:
+                        st.markdown("**Evidence:**")
+                        for e in evidence:
+                            player_tag = f" ({e.get('player', '')})" if e.get("player") else ""
+                            st.markdown(f"- **{e.get('minute', '?')}'**{player_tag}: {e.get('description', '')}")
+
+                    # Confidence + Sources
+                    col_conf, col_src = st.columns(2)
+                    with col_conf:
+                        confidence = sr.get("confidence", "medium")
+                        conf_colors = {"high": "🟢", "medium": "🟡", "low": "🔴"}
+                        st.markdown(f"**Confidence:** {conf_colors.get(confidence, '⚪')} {confidence}")
+                    with col_src:
+                        data_sources = sr.get("sources", [])
+                        if data_sources:
+                            st.markdown(f"**Sources:** {', '.join(data_sources)}")
+
+                    # Retrieval trace
                     if sources:
-                        with st.expander(f"Evidence ({len(sources)} sources)"):
+                        with st.expander("🔎 Retrieval trace"):
                             for src in sources:
                                 if src.get("type") == "tool_result":
-                                    st.markdown(f"**Tool:** `{src.get('tool', 'N/A')}`")
+                                    st.markdown(f"🔧 Tool: `{src.get('tool', 'N/A')}` — args: `{src.get('args', {})}`")
                                 elif src.get("event_id"):
                                     st.markdown(
-                                        f"**{src.get('minute', '?')}' — "
+                                        f"🔍 **{src.get('minute', '?')}' — "
                                         f"{src.get('event_type', 'event').replace('_', ' ').title()}**"
                                         f" ({src.get('player_name', '')})"
                                     )
@@ -443,6 +463,7 @@ with analyst_tab:
                     # Save to history
                     st.session_state.chat_history.append({
                         "role": "assistant",
-                        "content": generation,
+                        "content": answer,
+                        "structured_response": sr,
                         "sources": sources,
                     })

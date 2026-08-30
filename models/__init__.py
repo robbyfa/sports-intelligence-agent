@@ -7,6 +7,11 @@ from models.events import (
     MatchEvent,
     MatchFeed,
 )
+from models.analysis import (
+    Confidence,
+    EvidenceItem,
+    StructuredAnalysis,
+)
 
 __all__ = [
     "Player",
@@ -16,4 +21,7 @@ __all__ = [
     "EventType",
     "MatchEvent",
     "MatchFeed",
+    "Confidence",
+    "EvidenceItem",
+    "StructuredAnalysis",
 ]
