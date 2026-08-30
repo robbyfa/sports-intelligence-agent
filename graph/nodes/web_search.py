@@ -22,7 +22,17 @@ def web_search(state: GraphState) -> Dict[str, Any]:
     documents = state.get("documents") or []
 
     tavily_results = web_search_tool.invoke({"query": question})
-    joined = "\n".join(r["content"] for r in tavily_results)
+
+    # Handle both response formats: list[dict] or plain string
+    if isinstance(tavily_results, list):
+        joined = "\n".join(
+            r["content"] if isinstance(r, dict) else str(r)
+            for r in tavily_results
+        )
+    elif isinstance(tavily_results, str):
+        joined = tavily_results
+    else:
+        joined = str(tavily_results)
 
     web_results = Document(page_content=joined)
     documents.append(web_results)
