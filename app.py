@@ -1,9 +1,8 @@
 """Streamlit UI for the Streaming Sports Intelligence Agent.
 
-3-column layout designed for quick recruiter scanning:
-  Left:   Ingested match events (live feed)
-  Middle: Ask a question (chat input + history)
-  Right:  Answer + evidence + sources + trace metadata
+2-column layout:
+  Left:  Ingested match events (live feed)
+  Right: Chat with the analyst (evidence + sources embedded in each reply)
 
 Run with: streamlit run app.py
 """
@@ -40,42 +39,40 @@ st.set_page_config(
 st.markdown("""
 <style>
     .block-container { padding-top: 2.5rem; }
-    .stColumn > div { padding: 0 0.5rem; }
-    .event-feed { max-height: 70vh; overflow-y: auto; padding: 0.5rem; }
-    .answer-panel { max-height: 70vh; overflow-y: auto; }
+    .event-feed { max-height: 75vh; overflow-y: auto; padding: 0.5rem; }
     .score-header {
         text-align: center; padding: 12px; background: rgba(128,128,128,0.15);
         border-radius: 8px; margin-bottom: 12px; font-size: 1.3rem; font-weight: 700;
     }
     .evidence-item {
-        padding: 8px 12px; margin: 6px 0;
-        background: rgba(34, 197, 94, 0.1);
+        padding: 6px 10px; margin: 4px 0;
+        background: rgba(34, 197, 94, 0.08);
         border-left: 3px solid #22c55e; border-radius: 4px; font-size: 0.85rem;
         color: inherit;
     }
     .claim-pass {
         border-left-color: #22c55e;
-        background: rgba(34, 197, 94, 0.1);
+        background: rgba(34, 197, 94, 0.08);
         color: inherit;
     }
     .claim-fail {
         border-left-color: #ef4444;
-        background: rgba(239, 68, 68, 0.1);
+        background: rgba(239, 68, 68, 0.08);
         color: inherit;
     }
     .trace-item {
-        padding: 4px 8px; margin: 2px 0;
-        background: rgba(128, 128, 128, 0.1);
-        border-radius: 4px; font-size: 0.8rem;
-        color: inherit; opacity: 0.8;
+        padding: 3px 8px; margin: 2px 0;
+        background: rgba(128, 128, 128, 0.08);
+        border-radius: 4px; font-size: 0.78rem;
+        color: inherit; opacity: 0.75;
     }
+    .conf-high { background: rgba(34, 197, 94, 0.15); color: #22c55e; }
+    .conf-medium { background: rgba(234, 179, 8, 0.15); color: #eab308; }
+    .conf-low { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
     .confidence-badge {
         display: inline-block; padding: 2px 10px; border-radius: 12px;
-        font-size: 0.8rem; font-weight: 600;
+        font-size: 0.78rem; font-weight: 600;
     }
-    .conf-high { background: rgba(34, 197, 94, 0.2); color: #22c55e; }
-    .conf-medium { background: rgba(234, 179, 8, 0.2); color: #eab308; }
-    .conf-low { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -102,18 +99,81 @@ EVENT_BADGES = {
 
 
 def render_event_compact(event: MatchEvent) -> str:
-    """Render a compact event for the left column."""
     label, color = EVENT_BADGES.get(event.event_type, ("📌 EVENT", "#6b7280"))
     player = f" — {event.player_name}" if event.player_name else ""
     return (
-        f'<div style="padding:6px 0;border-bottom:1px solid #e5e7eb;font-size:0.85rem;">'
+        f'<div style="padding:6px 0;border-bottom:1px solid rgba(128,128,128,0.2);font-size:0.85rem;">'
         f'<strong>{event.minute}\'</strong> '
         f'<span style="background:{color};color:white;padding:1px 6px;'
         f'border-radius:3px;font-size:0.7rem;font-weight:600;">{label}</span>'
         f'{player}'
-        f'<br><span style="color:#6b7280;font-size:0.8rem;">{event.narrative_text[:120]}</span>'
+        f'<br><span style="opacity:0.7;font-size:0.8rem;">{event.narrative_text[:120]}</span>'
         f'</div>'
     )
+
+
+# ── Helper: render inline citations ───────────────────────────────
+
+def render_citations(sr: dict, sources: list) -> None:
+    """Render evidence, confidence, sources, and trace inline in a chat message."""
+    evidence = sr.get("evidence", [])
+    verifications = sr.get("claim_verifications", [])
+    confidence = sr.get("confidence", "medium")
+    data_sources = sr.get("sources", [])
+
+    # Normalise confidence
+    if isinstance(confidence, str):
+        confidence = confidence.split(".")[-1].lower()
+
+    # Evidence
+    if evidence:
+        with st.expander(f"📋 Evidence ({len(evidence)} items)", expanded=False):
+            for e in evidence:
+                player_tag = f" ({e.get('player', '')})" if e.get("player") else ""
+                st.markdown(
+                    f'<div class="evidence-item">'
+                    f'<strong>{e.get("minute", "?")}\'</strong>{player_tag}: '
+                    f'{e.get("description", "")}</div>',
+                    unsafe_allow_html=True,
+                )
+
+    # Claim verifications
+    if verifications:
+        verified = sr.get("verified_claims", 0)
+        total = sr.get("total_claims", 0)
+        with st.expander(f"✅ Claim Verification ({verified}/{total} supported)", expanded=False):
+            for v in verifications:
+                css = "claim-pass" if v.get("supported") else "claim-fail"
+                icon = "✓" if v.get("supported") else "✗"
+                st.markdown(
+                    f'<div class="evidence-item {css}">{icon} {v.get("claim", "")}</div>',
+                    unsafe_allow_html=True,
+                )
+
+    # Confidence + data sources (inline row)
+    conf_class = f"conf-{confidence}" if confidence in ("high", "medium", "low") else ""
+    meta_parts = [f'<span class="confidence-badge {conf_class}">Confidence: {confidence}</span>']
+    if data_sources:
+        meta_parts.append(f'<span style="opacity:0.6;font-size:0.78rem;margin-left:12px;">📁 {", ".join(data_sources)}</span>')
+    st.markdown(" ".join(meta_parts), unsafe_allow_html=True)
+
+    # Retrieval trace
+    if sources:
+        with st.expander("🔎 Retrieval trace", expanded=False):
+            for src in sources:
+                if src.get("type") == "tool_result":
+                    st.markdown(
+                        f'<div class="trace-item">🔧 <code>{src.get("tool", "?")}</code>'
+                        f' — {src.get("args", {})}</div>',
+                        unsafe_allow_html=True,
+                    )
+                elif src.get("event_id"):
+                    etype = src.get("event_type", "event").replace("_", " ").title()
+                    st.markdown(
+                        f'<div class="trace-item">🔍 {src.get("minute", "?")}\'  '
+                        f'{etype} — {src.get("player_name", "")}</div>',
+                        unsafe_allow_html=True,
+                    )
 
 
 # ── Session state ──────────────────────────────────────────────────
@@ -130,7 +190,6 @@ def init_session_state():
         "active_match_id": None,
         "active_feed": None,
         "ingestion_complete": False,
-        "last_result": None,
     }
     for key, val in defaults.items():
         if key not in st.session_state:
@@ -225,26 +284,31 @@ with st.sidebar:
     if mode == "Real-time":
         speed = st.slider("Speed", 10.0, 1000.0, 100.0, 10.0)
 
-    if st.button("▶️ Start Match", disabled=st.session_state.match_status == "in_progress",
-                 use_container_width=True, type="primary"):
-        st.session_state.events_feed = []
-        st.session_state.chat_history = []
-        st.session_state.match_loaded = False
-        st.session_state.match_status = "not_started"
-        st.session_state.ingestion_complete = False
-        st.session_state.agent = None
-        st.session_state.last_result = None
-        if st.session_state.event_store:
-            st.session_state.event_store.close()
-        st.session_state.event_store = None
-        st.session_state.vector_store = None
-        feed = load_fixture(selected)
-        if mode == "Batch":
-            with st.spinner(f"Ingesting {len(feed.events)} events..."):
-                ingest_batch(feed)
-            st.rerun()
-        else:
-            start_realtime(feed, speed)
+    col_start, col_clear = st.columns(2)
+    with col_start:
+        if st.button("▶️ Start Match", disabled=st.session_state.match_status == "in_progress",
+                     use_container_width=True, type="primary"):
+            st.session_state.events_feed = []
+            st.session_state.chat_history = []
+            st.session_state.match_loaded = False
+            st.session_state.match_status = "not_started"
+            st.session_state.ingestion_complete = False
+            st.session_state.agent = None
+            if st.session_state.event_store:
+                st.session_state.event_store.close()
+            st.session_state.event_store = None
+            st.session_state.vector_store = None
+            feed = load_fixture(selected)
+            if mode == "Batch":
+                with st.spinner(f"Ingesting {len(feed.events)} events..."):
+                    ingest_batch(feed)
+                st.rerun()
+            else:
+                start_realtime(feed, speed)
+                st.rerun()
+    with col_clear:
+        if st.button("🗑️ Clear Chat", use_container_width=True):
+            st.session_state.chat_history = []
             st.rerun()
 
     st.markdown("---")
@@ -290,9 +354,9 @@ if st.session_state.match_status == "in_progress":
     st.rerun()
 
 
-# ── 3-Column Layout ───────────────────────────────────────────────
+# ── 2-Column Layout ───────────────────────────────────────────────
 
-left_col, mid_col, right_col = st.columns([1, 1.2, 1.3])
+left_col, right_col = st.columns([1, 1.6])
 
 # ── LEFT: Live Events ─────────────────────────────────────────────
 
@@ -304,7 +368,6 @@ with left_col:
     else:
         events = st.session_state.events_feed
 
-        # Score header
         if st.session_state.active_feed:
             meta = st.session_state.active_feed.metadata
             goals = [e for e in events if e.event_type == EventType.GOAL]
@@ -318,121 +381,46 @@ with left_col:
         html = "".join(render_event_compact(e) for e in reversed(events))
         st.markdown(f'<div class="event-feed">{html}</div>', unsafe_allow_html=True)
 
-# ── MIDDLE: Ask the Analyst ────────────────────────────────────────
+# ── RIGHT: Chat with the Analyst ──────────────────────────────────
 
-with mid_col:
+with right_col:
     st.markdown("### 💬 Ask the Analyst")
 
     if not st.session_state.match_loaded:
-        st.caption("Load a match first.")
+        st.caption("Load a match first to start chatting.")
     else:
-        # Chat history
-        for msg in st.session_state.chat_history:
-            with st.chat_message(msg["role"]):
-                st.markdown(msg["content"])
+        # Scrollable chat container
+        chat_container = st.container(height=550)
 
-        # Chat input
+        with chat_container:
+            # Render chat history with inline citations
+            for msg in st.session_state.chat_history:
+                with st.chat_message(msg["role"]):
+                    st.markdown(msg["content"])
+                    # Render citations inline for assistant messages
+                    if msg["role"] == "assistant":
+                        sr = msg.get("structured_response", {})
+                        sources = msg.get("sources", [])
+                        if sr or sources:
+                            render_citations(sr, sources)
+
+        # Chat input (outside the container so it stays at the bottom)
         if question := st.chat_input("Ask about the match...", key="main_chat"):
             st.session_state.chat_history.append({"role": "user", "content": question})
-            with st.chat_message("user"):
-                st.markdown(question)
 
-            with st.chat_message("assistant"):
-                with st.spinner("Analysing..."):
-                    match_id = st.session_state.active_match_id or "match_001"
-                    result = st.session_state.agent.invoke(
-                        input={"question": question, "match_id": match_id, "retries": 0}
-                    )
-                    sr = result.get("structured_response", {})
-                    answer = sr.get("answer", result.get("generation", "No analysis generated."))
-                    st.markdown(answer)
-
-                    # Store for right panel
-                    st.session_state.last_result = result
-                    st.session_state.chat_history.append({
-                        "role": "assistant",
-                        "content": answer,
-                        "structured_response": sr,
-                        "sources": result.get("sources", []),
-                    })
-                    st.rerun()
-
-# ── RIGHT: Evidence + Sources + Trace ──────────────────────────────
-
-with right_col:
-    st.markdown("### 📊 Evidence & Sources")
-
-    # Show the latest result
-    last = st.session_state.last_result
-    if last is None:
-        st.caption("Ask a question to see the analysis breakdown here.")
-    else:
-        sr = last.get("structured_response", {})
-        sources = last.get("sources", [])
-
-        # Evidence items
-        evidence = sr.get("evidence", [])
-        if evidence:
-            st.markdown("**Evidence:**")
-            for e in evidence:
-                player_tag = f" ({e.get('player', '')})" if e.get("player") else ""
-                etype = e.get("event_type", "")
-                etype_tag = f' [{etype}]' if etype else ""
-                st.markdown(
-                    f'<div class="evidence-item">'
-                    f'<strong>{e.get("minute", "?")}\'</strong>{player_tag}{etype_tag}<br>'
-                    f'{e.get("description", "")}</div>',
-                    unsafe_allow_html=True,
+            with st.spinner("Analysing..."):
+                match_id = st.session_state.active_match_id or "match_001"
+                result = st.session_state.agent.invoke(
+                    input={"question": question, "match_id": match_id, "retries": 0}
                 )
+                sr = result.get("structured_response", {})
+                answer = sr.get("answer", result.get("generation", "No analysis generated."))
 
-        # Claim verifications (from analyst brief workflow)
-        verifications = sr.get("claim_verifications", [])
-        if verifications:
-            verified = sr.get("verified_claims", 0)
-            total = sr.get("total_claims", 0)
-            st.markdown(f"**Claim Verification:** {verified}/{total} supported")
-            for v in verifications:
-                css_class = "claim-pass" if v.get("supported") else "claim-fail"
-                icon = "✓" if v.get("supported") else "✗"
-                st.markdown(
-                    f'<div class="evidence-item {css_class}">'
-                    f'{icon} {v.get("claim", "")}'
-                    f'</div>',
-                    unsafe_allow_html=True,
-                )
+                st.session_state.chat_history.append({
+                    "role": "assistant",
+                    "content": answer,
+                    "structured_response": sr,
+                    "sources": result.get("sources", []),
+                })
 
-        # Confidence
-        st.markdown("---")
-        confidence = sr.get("confidence", "medium")
-        # Normalise enum values like "Confidence.HIGH" → "high"
-        if isinstance(confidence, str):
-            confidence = confidence.split(".")[-1].lower()
-        conf_class = f"conf-{confidence}" if confidence in ("high", "medium", "low") else ""
-        st.markdown(
-            f'<span class="confidence-badge {conf_class}">Confidence: {confidence}</span>',
-            unsafe_allow_html=True,
-        )
-
-        # Data sources
-        data_sources = sr.get("sources", [])
-        if data_sources:
-            st.caption(f"📁 Data sources: {', '.join(data_sources)}")
-
-        # Retrieval trace
-        if sources:
-            st.markdown("---")
-            st.markdown("**🔎 Retrieval Trace**")
-            for src in sources:
-                if src.get("type") == "tool_result":
-                    st.markdown(
-                        f'<div class="trace-item">🔧 <code>{src.get("tool", "?")}</code>'
-                        f' — {src.get("args", {})}</div>',
-                        unsafe_allow_html=True,
-                    )
-                elif src.get("event_id"):
-                    etype = src.get("event_type", "event").replace("_", " ").title()
-                    st.markdown(
-                        f'<div class="trace-item">🔍 {src.get("minute", "?")}\'  '
-                        f'{etype} — {src.get("player_name", "")}</div>',
-                        unsafe_allow_html=True,
-                    )
+            st.rerun()
