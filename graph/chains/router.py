@@ -38,17 +38,29 @@ You have four options:
   - "What's the complete tactical breakdown?" → analyst_brief
   - "Produce a pundit-style analysis of the match" → analyst_brief
 
-- **tools**: Use for specific, structured queries. Examples:
+- **tools**: Use for queries that need structured data: timelines, player stats, match summaries,
+  or comparisons that depend on statistics. IMPORTANT: any question about player performance,
+  impact, or comparisons should use tools because it needs aggregated stats (goals, assists,
+  shots, xG) to give an accurate answer.
+  Examples:
   - "What happened between minute 60 and 75?" → tools (timeline query)
-  - "How did Saka play?" or "Player stats for Haaland" → tools (player stats)
+  - "How did Saka play?" → tools (player stats)
+  - "Player stats for Haaland" → tools (player stats)
+  - "Which player had the biggest impact?" → tools (needs stats for multiple players)
+  - "Who was the best player?" → tools (needs stats comparison)
+  - "Compare the two strikers" → tools (player stats)
   - "What's the score?" or "Summarise the match" → tools (match summary)
   - "Show me the substitutions" → tools (timeline or summary)
+  - "How many shots did Arsenal have?" → tools (match summary)
   
-- **vectorstore**: Use for semantic or narrative questions. Examples:
+- **vectorstore**: Use for semantic or narrative questions about specific moments, build-up play,
+  or context that requires understanding the flow of the game.
+  Examples:
   - "What was the turning point?" → vectorstore
   - "Describe the build-up to the equaliser" → vectorstore
   - "What changed after the red card?" → vectorstore
   - "Were there any controversial moments?" → vectorstore
+  - "What are the key talking points?" → vectorstore
   
 - **websearch**: Use only when the question is clearly not about the current match data.
   Examples:
@@ -56,7 +68,8 @@ You have four options:
   - "Who won the Champions League last year?" → websearch
 
 Choose analyst_brief when the question asks for a comprehensive, multi-faceted analysis.
-When in doubt between tools and vectorstore, prefer vectorstore — it captures richer context.
+Choose tools when the answer depends on statistics, numbers, or player comparisons.
+Choose vectorstore when the answer depends on narrative context or the flow of the game.
 """
 
 route_prompt = ChatPromptTemplate.from_messages(

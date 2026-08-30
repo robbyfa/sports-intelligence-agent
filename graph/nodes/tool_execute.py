@@ -34,6 +34,10 @@ def tool_execute(state: GraphState) -> Dict[str, Any]:
         f"You are a sports data assistant. The user is asking about match '{match_id}'. "
         f"Use the available tools to gather the information needed to answer this question. "
         f"Always pass match_id='{match_id}' when calling tools.\n\n"
+        f"IMPORTANT: If the question is about player impact, best player, or player comparison, "
+        f"you MUST call get_match_summary first to see who scored and who was involved in key moments, "
+        f"then call get_player_stats for the 2-3 most relevant players to compare their stats. "
+        f"Call multiple tools when needed — don't just call one.\n\n"
         f"Question: {question}"
     )
 
