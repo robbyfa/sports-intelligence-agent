@@ -1,10 +1,14 @@
 """LangGraph agent for streaming sports intelligence.
 
 Flow:
-  route_question → (tool_execute | event_search | websearch)
+  route_question → (tool_execute | event_search | analyst_brief | websearch)
     → grade_documents → generate
     → hallucination_check → answer_check
     → END (with sources) or retry
+
+The analyst_brief route is special: it runs its own multi-step workflow
+with claim verification, then goes directly to END (skipping the quality
+loop since it has its own verification).
 
 The graph is compiled into ``app`` for use by main.py and the Streamlit UI.
 """
@@ -18,6 +22,7 @@ from graph.chains.answer_grader import answer_grader
 from graph.chains.hallucination_grader import hallucination_grader
 from graph.chains.router import RouteQuery, question_router
 from graph.consts import (
+    ANALYST_BRIEF,
     EVENT_SEARCH,
     GENERATE,
     GRADE_DOCUMENTS,
@@ -25,6 +30,7 @@ from graph.consts import (
     WEBSEARCH,
 )
 from graph.nodes import (
+    analyst_brief,
     event_search,
     generate,
     grade_documents,
@@ -47,7 +53,10 @@ def route_question(state: GraphState) -> str:
     question = state["question"]
     source: RouteQuery = question_router.invoke({"question": question})
 
-    if source.datasource == "tools":
+    if source.datasource == "analyst_brief":
+        print("  → ROUTE TO ANALYST BRIEF")
+        return ANALYST_BRIEF
+    elif source.datasource == "tools":
         print("  → ROUTE TO TOOLS")
         return TOOL_EXECUTE
     elif source.datasource == "vectorstore":
@@ -124,6 +133,7 @@ def build_graph() -> StateGraph:
     # Add nodes
     workflow.add_node(TOOL_EXECUTE, tool_execute)
     workflow.add_node(EVENT_SEARCH, event_search)
+    workflow.add_node(ANALYST_BRIEF, analyst_brief)
     workflow.add_node(GRADE_DOCUMENTS, grade_documents)
     workflow.add_node(GENERATE, generate)
     workflow.add_node(WEBSEARCH, web_search)
@@ -134,6 +144,7 @@ def build_graph() -> StateGraph:
         {
             TOOL_EXECUTE: TOOL_EXECUTE,
             EVENT_SEARCH: EVENT_SEARCH,
+            ANALYST_BRIEF: ANALYST_BRIEF,
             WEBSEARCH: WEBSEARCH,
         },
     )
@@ -141,6 +152,9 @@ def build_graph() -> StateGraph:
     # After tool execution or event search → grade documents
     workflow.add_edge(TOOL_EXECUTE, GRADE_DOCUMENTS)
     workflow.add_edge(EVENT_SEARCH, GRADE_DOCUMENTS)
+
+    # Analyst brief goes directly to END — it has its own verification
+    workflow.add_edge(ANALYST_BRIEF, END)
 
     # After grading → generate or fall back to web search
     workflow.add_conditional_edges(
