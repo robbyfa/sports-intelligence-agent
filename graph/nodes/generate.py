@@ -46,7 +46,7 @@ def generate(state: GraphState) -> Dict[str, Any]:
             {"question": question, "context": context}
         )
         generation = analysis.format_plain()
-        structured_response = analysis.model_dump()
+        structured_response = analysis.model_dump(mode="json")
     except Exception as e:
         print(f"  Structured generation failed ({e}), falling back to plain text")
         from graph.chains.generation import generation_chain

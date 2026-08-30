@@ -39,31 +39,43 @@ st.set_page_config(
 
 st.markdown("""
 <style>
-    .block-container { padding-top: 1rem; }
+    .block-container { padding-top: 2.5rem; }
     .stColumn > div { padding: 0 0.5rem; }
     .event-feed { max-height: 70vh; overflow-y: auto; padding: 0.5rem; }
     .answer-panel { max-height: 70vh; overflow-y: auto; }
     .score-header {
-        text-align: center; padding: 12px; background: #f9fafb;
+        text-align: center; padding: 12px; background: rgba(128,128,128,0.15);
         border-radius: 8px; margin-bottom: 12px; font-size: 1.3rem; font-weight: 700;
     }
     .evidence-item {
-        padding: 6px 10px; margin: 4px 0; background: #f0fdf4;
+        padding: 8px 12px; margin: 6px 0;
+        background: rgba(34, 197, 94, 0.1);
         border-left: 3px solid #22c55e; border-radius: 4px; font-size: 0.85rem;
+        color: inherit;
     }
-    .claim-pass { border-left-color: #22c55e; background: #f0fdf4; }
-    .claim-fail { border-left-color: #ef4444; background: #fef2f2; }
+    .claim-pass {
+        border-left-color: #22c55e;
+        background: rgba(34, 197, 94, 0.1);
+        color: inherit;
+    }
+    .claim-fail {
+        border-left-color: #ef4444;
+        background: rgba(239, 68, 68, 0.1);
+        color: inherit;
+    }
     .trace-item {
-        padding: 4px 8px; margin: 2px 0; background: #f5f3ff;
-        border-radius: 4px; font-size: 0.8rem; color: #6b7280;
+        padding: 4px 8px; margin: 2px 0;
+        background: rgba(128, 128, 128, 0.1);
+        border-radius: 4px; font-size: 0.8rem;
+        color: inherit; opacity: 0.8;
     }
     .confidence-badge {
         display: inline-block; padding: 2px 10px; border-radius: 12px;
         font-size: 0.8rem; font-weight: 600;
     }
-    .conf-high { background: #dcfce7; color: #166534; }
-    .conf-medium { background: #fef9c3; color: #854d0e; }
-    .conf-low { background: #fee2e2; color: #991b1b; }
+    .conf-high { background: rgba(34, 197, 94, 0.2); color: #22c55e; }
+    .conf-medium { background: rgba(234, 179, 8, 0.2); color: #eab308; }
+    .conf-low { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -392,6 +404,9 @@ with right_col:
         # Confidence
         st.markdown("---")
         confidence = sr.get("confidence", "medium")
+        # Normalise enum values like "Confidence.HIGH" → "high"
+        if isinstance(confidence, str):
+            confidence = confidence.split(".")[-1].lower()
         conf_class = f"conf-{confidence}" if confidence in ("high", "medium", "low") else ""
         st.markdown(
             f'<span class="confidence-badge {conf_class}">Confidence: {confidence}</span>',
