@@ -1,6 +1,6 @@
 [project]
 name = "sports-intelligence-agent"
-version = "1.0.0"
+version = "2.0.0"
 description = "Streaming sports intelligence agent using Kafka, LangChain, LangGraph, and RAG"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -10,6 +10,7 @@ dependencies = [
     "langchain-openai>=1.6.0",
     "langchain-tavily>=0.2.18",
     "langgraph>=1.2.11",
+    "langsmith>=0.11.0",
     "pydantic>=2.0.0",
     "python-dotenv>=1.2.3",
     "streamlit>=1.62.0",
